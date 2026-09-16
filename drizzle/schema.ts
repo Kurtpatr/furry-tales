@@ -1,17 +1,7 @@
 import { int, mysqlEnum, mysqlTable, text, timestamp, varchar } from "drizzle-orm/mysql-core";
 
-/**
- * Core user table backing auth flow.
- * Extend this file with additional tables as your product grows.
- * Columns use camelCase to match both database fields and generated types.
- */
 export const users = mysqlTable("users", {
-  /**
-   * Surrogate primary key. Auto-incremented numeric value managed by the database.
-   * Use this for relations between tables.
-   */
   id: int("id").autoincrement().primaryKey(),
-  /** Manus OAuth identifier (openId) returned from the OAuth callback. Unique per user. */
   openId: varchar("openId", { length: 64 }).notNull().unique(),
   name: text("name"),
   email: varchar("email", { length: 320 }),
@@ -25,4 +15,20 @@ export const users = mysqlTable("users", {
 export type User = typeof users.$inferSelect;
 export type InsertUser = typeof users.$inferInsert;
 
-// TODO: Add your tables here
+export const pets = mysqlTable("pets", {
+  id: int("id").autoincrement().primaryKey(),
+  userId: int("userId").notNull().references(() => users.id),
+  name: varchar("name", { length: 120 }).notNull(),
+  animal: mysqlEnum("animal", ["dog", "cat", "other"]).notNull(),
+  breed: varchar("breed", { length: 120 }),
+  age: varchar("age", { length: 80 }),
+  tracker: varchar("tracker", { length: 160 }),
+  photoUrl: text("photoUrl"),
+  notes: text("notes"),
+  status: mysqlEnum("status", ["active", "archived"]).default("active").notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type Pet = typeof pets.$inferSelect;
+export type InsertPet = typeof pets.$inferInsert;

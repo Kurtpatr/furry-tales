@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useAuth } from "@/_core/hooks/useAuth";
 import { startLogin } from "@/const";
+import { trpc } from "@/lib/trpc";
 import {
   ArrowRight,
   ArrowUpRight,
@@ -126,12 +127,51 @@ function scrollToId(id: string) {
 
 export default function Home() {
   const { user, isAuthenticated, loading, logout } = useAuth();
+  const trpcUtils = trpc.useUtils();
+  const petsQuery = trpc.account.pets.useQuery(undefined, { enabled: isAuthenticated });
+  const profileMutation = trpc.account.updateProfile.useMutation({
+    onSuccess: () => {
+      trpcUtils.auth.me.invalidate();
+      setToast("Profile saved successfully");
+      setDashboardModal(null);
+    },
+    onError: (error) => setToast(error.message || "We could not save your profile"),
+  });
+  const addPetMutation = trpc.account.addPet.useMutation({
+    onSuccess: () => {
+      trpcUtils.account.pets.invalidate();
+      setToast("Pet added to your family");
+      setDashboardModal(null);
+      setEditingPetId(null);
+    },
+    onError: (error) => setToast(error.message || "We could not add this pet"),
+  });
+  const updatePetMutation = trpc.account.updatePet.useMutation({
+    onSuccess: () => {
+      trpcUtils.account.pets.invalidate();
+      setToast("Pet details updated");
+      setDashboardModal(null);
+      setEditingPetId(null);
+    },
+    onError: (error) => setToast(error.message || "We could not update this pet"),
+  });
+  const archivePetMutation = trpc.account.archivePet.useMutation({
+    onSuccess: () => {
+      trpcUtils.account.pets.invalidate();
+      setToast("Pet archived from your dashboard");
+    },
+    onError: (error) => setToast(error.message || "We could not archive this pet"),
+  });
   const [promoIndex, setPromoIndex] = useState(0);
   const [isPaused, setIsPaused] = useState(false);
   const [cartCount, setCartCount] = useState(0);
   const [mobileOpen, setMobileOpen] = useState(false);
   const [toast, setToast] = useState("");
   const [serviceModal, setServiceModal] = useState<string | null>(null);
+  const [dashboardModal, setDashboardModal] = useState<"profile" | "pet" | null>(null);
+  const [editingPetId, setEditingPetId] = useState<number | null>(null);
+  const [profileForm, setProfileForm] = useState({ name: "", email: "" });
+  const [petForm, setPetForm] = useState({ name: "", animal: "dog" as "dog" | "cat" | "other", breed: "", age: "", tracker: "", photoUrl: "", notes: "" });
 
   useEffect(() => {
     if (isPaused) return;
@@ -146,6 +186,11 @@ export default function Home() {
     const timeout = window.setTimeout(() => setToast(""), 2500);
     return () => window.clearTimeout(timeout);
   }, [toast]);
+
+  useEffect(() => {
+    if (!user) return;
+    setProfileForm({ name: user.name ?? "", email: user.email ?? "" });
+  }, [user]);
 
   const promo = promos[promoIndex];
   const greeting = useMemo(() => {
@@ -168,6 +213,28 @@ export default function Home() {
       return;
     }
     showToast(message);
+  }
+
+  function openProfileEditor() {
+    if (!isAuthenticated) return handleProtectedAction("Log in to edit your profile");
+    setProfileForm({ name: user?.name ?? "", email: user?.email ?? "" });
+    setDashboardModal("profile");
+  }
+
+  function openPetEditor(pet?: NonNullable<typeof petsQuery.data>[number]) {
+    if (!isAuthenticated) return handleProtectedAction("Log in to manage your pets");
+    setEditingPetId(pet?.id ?? null);
+    setPetForm({ name: pet?.name ?? "", animal: pet?.animal ?? "dog", breed: pet?.breed ?? "", age: pet?.age ?? "", tracker: pet?.tracker ?? "", photoUrl: pet?.photoUrl ?? "", notes: pet?.notes ?? "" });
+    setDashboardModal("pet");
+  }
+
+  function saveProfile() {
+    profileMutation.mutate(profileForm);
+  }
+
+  function savePet() {
+    if (editingPetId) updatePetMutation.mutate({ ...petForm, id: editingPetId });
+    else addPetMutation.mutate(petForm);
   }
 
   return (
@@ -273,7 +340,32 @@ export default function Home() {
         </section>
 
         <section className="section section--dashboard" id="dashboard">
-          <div className="container dashboard-card"><div className="dashboard-copy"><div className="eyebrow eyebrow--light">Your pet's happy place</div><h2>Everything important,<br /><em>in one gentle place.</em></h2><p>Keep care plans, reservations, pet profiles, and little reminders together — so you can spend less time organising and more time cuddling.</p>{isAuthenticated ? <button className="button button--light" onClick={() => showToast("Dashboard is ready for you")}>Open my dashboard <ArrowRight size={18} /></button> : <button className="button button--light" onClick={handleLogin}>Create your account <ArrowRight size={18} /></button>}</div><div className="dashboard-preview"><div className="preview-top"><span className="preview-logo"><PawPrint size={13} weight="fill" /> dashboard</span><span className="preview-avatar">{isAuthenticated ? greeting.slice(0, 1).toUpperCase() : "K"}</span></div><div className="preview-body"><div className="preview-welcome">Good morning, {isAuthenticated ? greeting : "Kurt"} <span>✦</span></div><div className="preview-stats"><div><small>Next visit</small><strong>14 days</strong></div><div><small>My pets</small><strong>02</strong></div><div><small>Reservations</small><strong>01</strong></div></div><div className="preview-row"><span><CalendarBlank size={16} /> Grooming appointment</span><b>Fri, Sep 26</b></div><div className="preview-row"><span><ShieldCheck size={16} /> Vaccination reminder</span><b>Due soon</b></div></div></div></div>
+          <div className="container dashboard-card">
+            <div className="dashboard-copy">
+              <div className="eyebrow eyebrow--light">Your pet's happy place</div>
+              <h2>Everything important,<br /><em>in one gentle place.</em></h2>
+              <p>Keep care plans, reservations, pet profiles, and little reminders together — so you can spend less time organising and more time cuddling.</p>
+              <div className="dashboard-actions">
+                {isAuthenticated ? <>
+                  <button className="button button--light" onClick={openProfileEditor}>Edit profile <ArrowRight size={18} /></button>
+                  <button className="button button--ghost-light" onClick={() => openPetEditor()}>Add a pet <Plus size={18} /></button>
+                </> : <button className="button button--light" onClick={handleLogin}>Create your account <ArrowRight size={18} /></button>}
+              </div>
+            </div>
+            <div className="dashboard-preview">
+              <div className="preview-top"><span className="preview-logo"><PawPrint size={13} weight="fill" /> dashboard</span><span className="preview-avatar">{isAuthenticated ? greeting.slice(0, 1).toUpperCase() : "K"}</span></div>
+              <div className="preview-body">
+                <div className="preview-welcome">Good morning, {isAuthenticated ? greeting : "Kurt"} <span>✦</span></div>
+                <div className="preview-stats"><div><small>Next visit</small><strong>14 days</strong></div><div><small>My pets</small><strong>{isAuthenticated ? (petsQuery.data?.length ?? 0) : "02"}</strong></div><div><small>Reservations</small><strong>01</strong></div></div>
+                <div className="preview-row"><span><CalendarBlank size={16} /> Grooming appointment</span><b>Fri, Sep 26</b></div>
+                <div className="preview-row"><span><ShieldCheck size={16} /> Vaccination reminder</span><b>Due soon</b></div>
+                <div className="preview-pets">
+                  <div className="preview-pets-heading"><span>My pets</span><button onClick={() => openPetEditor()}>{isAuthenticated ? "Manage" : "Log in"}</button></div>
+                  {isAuthenticated && petsQuery.data?.length ? petsQuery.data.slice(0, 2).map((pet) => <div className="preview-pet-row" key={pet.id}><span><PawPrint size={14} weight="fill" /> {pet.name} <small>{pet.animal}</small></span><span className="preview-pet-actions"><button onClick={() => openPetEditor(pet)} aria-label={`Edit ${pet.name}`}><ArrowUpRight size={14} /></button><button onClick={() => archivePetMutation.mutate({ id: pet.id })} aria-label={`Archive ${pet.name}`}><X size={13} /></button></span></div>) : <div className="preview-empty">{isAuthenticated ? "Add your first pet profile" : "Sign in to manage your pets"}</div>}
+                </div>
+              </div>
+            </div>
+          </div>
         </section>
 
         <section className="section section--about" id="about">
@@ -286,6 +378,56 @@ export default function Home() {
       {toast && <div className="toast" role="status"><CheckCircle size={19} weight="fill" /> {toast}</div>}
 
       {serviceModal && <div className="modal-backdrop" role="dialog" aria-modal="true" aria-label={`${serviceModal} booking`} onClick={() => setServiceModal(null)}><div className="booking-modal" onClick={(event) => event.stopPropagation()}><button className="modal-close" onClick={() => setServiceModal(null)} aria-label="Close"><X size={20} /></button><div className="modal-icon"><CalendarBlank size={24} weight="duotone" /></div><div className="eyebrow">Start your visit</div><h3>Book {serviceModal}</h3><p>Choose a pet and a preferred time. We’ll confirm the details with you before your visit.</p><label>Pet name<input placeholder="e.g. Buddy" /></label><label>Preferred date<input type="date" /></label><button className="button button--primary button--full" onClick={() => { setServiceModal(null); handleProtectedAction("Your reservation request is ready to finish"); }}>Continue to booking <ArrowRight size={18} /></button></div></div>}
+      {dashboardModal && (
+        <div
+          className="modal-backdrop"
+          role="dialog"
+          aria-modal="true"
+          aria-label={dashboardModal === "profile" ? "Edit profile" : "Manage pet"}
+          onClick={() => setDashboardModal(null)}
+        >
+          <div className="booking-modal dashboard-modal" onClick={(event) => event.stopPropagation()}>
+            <button className="modal-close" onClick={() => setDashboardModal(null)} aria-label="Close"><X size={20} /></button>
+            <div className="modal-icon">
+              {dashboardModal === "profile" ? <UserCircle size={24} weight="duotone" /> : <PawPrint size={24} weight="duotone" />}
+            </div>
+            <div className="eyebrow">{dashboardModal === "profile" ? "Your details" : editingPetId ? "Update a family member" : "Add a family member"}</div>
+            <h3>{dashboardModal === "profile" ? "Edit your profile" : editingPetId ? "Edit pet details" : "Add a pet"}</h3>
+
+            {dashboardModal === "profile" && (
+              <>
+                <p>Keep your contact details current so appointment updates and care reminders reach you.</p>
+                <label>Full name<input value={profileForm.name} onChange={(event) => setProfileForm({ ...profileForm, name: event.target.value })} placeholder="Your name" /></label>
+                <label>Email address<input type="email" value={profileForm.email} onChange={(event) => setProfileForm({ ...profileForm, email: event.target.value })} placeholder="you@example.com" /></label>
+                <button className="button button--primary button--full" disabled={profileMutation.isPending} onClick={saveProfile}>
+                  {profileMutation.isPending ? "Saving…" : "Save profile"} <CheckCircle size={18} />
+                </button>
+              </>
+            )}
+
+            {dashboardModal === "pet" && (
+              <>
+                <p>Add the details that help Furry Tales make every visit feel more personal.</p>
+                <div className="form-grid">
+                  <label>Pet name<input value={petForm.name} onChange={(event) => setPetForm({ ...petForm, name: event.target.value })} placeholder="e.g. Buddy" /></label>
+                  <label>Animal<select value={petForm.animal} onChange={(event) => setPetForm({ ...petForm, animal: event.target.value as "dog" | "cat" | "other" })}><option value="dog">Dog</option><option value="cat">Cat</option><option value="other">Other</option></select></label>
+                </div>
+                <div className="form-grid">
+                  <label>Breed<input value={petForm.breed} onChange={(event) => setPetForm({ ...petForm, breed: event.target.value })} placeholder="e.g. Golden retriever" /></label>
+                  <label>Age<input value={petForm.age} onChange={(event) => setPetForm({ ...petForm, age: event.target.value })} placeholder="e.g. 2 years" /></label>
+                </div>
+                <label>Pet tracker / microchip <span className="optional-label">optional</span><input value={petForm.tracker} onChange={(event) => setPetForm({ ...petForm, tracker: event.target.value })} placeholder="ID or tracker details" /></label>
+                <label>Photo URL <span className="optional-label">optional</span><input value={petForm.photoUrl} onChange={(event) => setPetForm({ ...petForm, photoUrl: event.target.value })} placeholder="https://…" /></label>
+                <label>Notes <span className="optional-label">optional</span><textarea value={petForm.notes} onChange={(event) => setPetForm({ ...petForm, notes: event.target.value })} placeholder="Allergies, personality, or care notes" rows={3} /></label>
+                <button className="button button--primary button--full" disabled={addPetMutation.isPending || updatePetMutation.isPending} onClick={savePet}>
+                  {addPetMutation.isPending || updatePetMutation.isPending ? "Saving…" : editingPetId ? "Save pet changes" : "Add pet"} <CheckCircle size={18} />
+                </button>
+                {editingPetId && <button className="archive-button" disabled={archivePetMutation.isPending} onClick={() => { archivePetMutation.mutate({ id: editingPetId }); setDashboardModal(null); }}>{archivePetMutation.isPending ? "Archiving…" : "Archive this pet"}</button>}
+              </>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
