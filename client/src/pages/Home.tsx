@@ -265,7 +265,7 @@ export default function Home() {
               {cartCount > 0 && <span className="cart-count">{cartCount}</span>}
             </button>
             {isAuthenticated ? (
-              <button className="account-chip" onClick={() => scrollToId("dashboard")}>
+                <button className="account-chip" onClick={() => { window.location.href = "/dashboard"; }}>
                 <span className="avatar">{greeting.slice(0, 1).toUpperCase()}</span>
                 <span className="account-name">Hi, {greeting}</span>
               </button>
@@ -347,7 +347,7 @@ export default function Home() {
               <p>Keep care plans, reservations, pet profiles, and little reminders together — so you can spend less time organising and more time cuddling.</p>
               <div className="dashboard-actions">
                 {isAuthenticated ? <>
-                  <button className="button button--light" onClick={openProfileEditor}>Edit profile <ArrowRight size={18} /></button>
+                  <button className="button button--light" onClick={() => { window.location.href = "/dashboard"; }}>Open dashboard <ArrowRight size={18} /></button>
                   <button className="button button--ghost-light" onClick={() => openPetEditor()}>Add a pet <Plus size={18} /></button>
                 </> : <button className="button button--light" onClick={handleLogin}>Create your account <ArrowRight size={18} /></button>}
               </div>
