@@ -1,6 +1,6 @@
 import { and, desc, eq } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
-import { InsertOrder, InsertOrderItem, InsertPet, InsertUser, orderItems, orders, pets, users } from "../drizzle/schema";
+import { InsertOrder, InsertOrderItem, InsertPet, InsertUser, InsertVeterinaryAppointment, orderItems, orders, pets, users, veterinaryAppointments } from "../drizzle/schema";
 import { ENV } from "./_core/env";
 
 let _db: ReturnType<typeof drizzle> | null = null;
@@ -103,4 +103,18 @@ export async function listOrders(userId: number) {
   const allItems = await db.select().from(orderItems).where(eq(orderItems.orderId, userOrders[0].id));
   const itemRows = await Promise.all(userOrders.slice(1).map((order) => db.select().from(orderItems).where(eq(orderItems.orderId, order.id))));
   return userOrders.map((order, index) => ({ ...order, items: index === 0 ? allItems : itemRows[index - 1] }));
+}
+
+export async function createVeterinaryAppointment(data: InsertVeterinaryAppointment) {
+  const db = await getDb();
+  if (!db) throw new Error("Database is not available");
+  const result = await db.insert(veterinaryAppointments).values(data);
+  const appointmentId = Number(result[0].insertId);
+  return db.select().from(veterinaryAppointments).where(eq(veterinaryAppointments.id, appointmentId)).limit(1).then((rows) => rows[0]);
+}
+
+export async function listVeterinaryAppointments(userId: number) {
+  const db = await getDb();
+  if (!db) return [];
+  return db.select().from(veterinaryAppointments).where(eq(veterinaryAppointments.userId, userId)).orderBy(desc(veterinaryAppointments.scheduledAt));
 }

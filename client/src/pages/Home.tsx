@@ -34,6 +34,7 @@ import {
 } from "@phosphor-icons/react";
 
 type IconType = typeof PawPrint;
+type VeterinaryService = "deworm" | "anti-rabies" | "checkup" | "full-checkup";
 
 type AssetImageProps = {
   name: string;
@@ -163,12 +164,26 @@ export default function Home() {
     },
     onError: (error) => setToast(error.message || "We could not archive this pet"),
   });
+  const veterinaryMutation = trpc.account.bookVeterinary.useMutation({
+    onSuccess: () => {
+      trpcUtils.account.veterinaryAppointments.invalidate();
+      setServiceModal(null);
+      setVeterinaryOption(null);
+      setToast("Veterinary appointment requested");
+    },
+    onError: (error) => setToast(error.message || "We could not request this appointment"),
+  });
   const [promoIndex, setPromoIndex] = useState(0);
   const [isPaused, setIsPaused] = useState(false);
   const cart = useCart();
   const [mobileOpen, setMobileOpen] = useState(false);
   const [toast, setToast] = useState("");
   const [serviceModal, setServiceModal] = useState<string | null>(null);
+  const [veterinaryOption, setVeterinaryOption] = useState<VeterinaryService | null>(null);
+  const [veterinaryPetId, setVeterinaryPetId] = useState("");
+  const [veterinaryPetName, setVeterinaryPetName] = useState("");
+  const [veterinaryDate, setVeterinaryDate] = useState("");
+  const [veterinaryNotes, setVeterinaryNotes] = useState("");
   const [dashboardModal, setDashboardModal] = useState<"profile" | "pet" | null>(null);
   const [editingPetId, setEditingPetId] = useState<number | null>(null);
   const [profileForm, setProfileForm] = useState({ name: "", email: "" });
@@ -214,6 +229,21 @@ export default function Home() {
       return;
     }
     showToast(message);
+  }
+
+  function openVeterinary() {
+    if (!isAuthenticated) return handleProtectedAction("Log in to book veterinary care");
+    setServiceModal("Veterinary");
+    setVeterinaryOption(null);
+    setVeterinaryPetId(petsQuery.data?.[0]?.id ? String(petsQuery.data[0].id) : "");
+    setVeterinaryPetName(petsQuery.data?.[0]?.name ?? "");
+  }
+
+  function submitVeterinary(event: React.FormEvent) {
+    event.preventDefault();
+    const selectedPet = petsQuery.data?.find((pet) => String(pet.id) === veterinaryPetId);
+    if (!veterinaryOption || !veterinaryDate || !(selectedPet?.name || veterinaryPetName.trim())) return;
+    veterinaryMutation.mutate({ petId: selectedPet?.id ?? null, petName: selectedPet?.name ?? veterinaryPetName.trim(), serviceType: veterinaryOption, scheduledAt: veterinaryDate, notes: veterinaryNotes });
   }
 
   function openProfileEditor() {
@@ -322,7 +352,7 @@ export default function Home() {
         <section className="section section--services" id="services">
           <div className="container">
             <div className="section-heading"><div className="eyebrow">Here when you need us</div><h2>Care for every chapter.</h2><p>From the first checkup to the everyday moments, our friendly team makes pet care feel easy.</p></div>
-            <div className="service-grid">{services.map(({ title, copy, price, Icon, accent }) => <article className={`service-card service-card--${accent}`} key={title}><div className="service-icon"><Icon size={28} weight="duotone" /></div><div><h3>{title}</h3><p>{copy}</p></div><div className="service-footer"><span>{price}</span><button onClick={() => setServiceModal(title)} aria-label={`Book ${title}`}><ArrowUpRight size={20} /></button></div></article>)}</div>
+            <div className="service-grid">{services.map(({ title, copy, price, Icon, accent }) => <article className={`service-card service-card--${accent}`} key={title}><div className="service-icon"><Icon size={28} weight="duotone" /></div><div><h3>{title}</h3><p>{copy}</p></div><div className="service-footer"><span>{price}</span><button onClick={() => title === "Veterinary" ? openVeterinary() : setServiceModal(title)} aria-label={`Book ${title}`}><ArrowUpRight size={20} /></button></div></article>)}</div>
           </div>
         </section>
 
@@ -378,7 +408,8 @@ export default function Home() {
 
       {toast && <div className="toast" role="status"><CheckCircle size={19} weight="fill" /> {toast}</div>}
 
-      {serviceModal && <div className="modal-backdrop" role="dialog" aria-modal="true" aria-label={`${serviceModal} booking`} onClick={() => setServiceModal(null)}><div className="booking-modal" onClick={(event) => event.stopPropagation()}><button className="modal-close" onClick={() => setServiceModal(null)} aria-label="Close"><X size={20} /></button><div className="modal-icon"><CalendarBlank size={24} weight="duotone" /></div><div className="eyebrow">Start your visit</div><h3>Book {serviceModal}</h3><p>Choose a pet and a preferred time. We’ll confirm the details with you before your visit.</p><label>Pet name<input placeholder="e.g. Buddy" /></label><label>Preferred date<input type="date" /></label><button className="button button--primary button--full" onClick={() => { setServiceModal(null); handleProtectedAction("Your reservation request is ready to finish"); }}>Continue to booking <ArrowRight size={18} /></button></div></div>}
+      {serviceModal && serviceModal !== "Veterinary" && <div className="modal-backdrop" role="dialog" aria-modal="true" aria-label={`${serviceModal} booking`} onClick={() => setServiceModal(null)}><div className="booking-modal" onClick={(event) => event.stopPropagation()}><button className="modal-close" onClick={() => setServiceModal(null)} aria-label="Close"><X size={20} /></button><div className="modal-icon"><CalendarBlank size={24} weight="duotone" /></div><div className="eyebrow">Start your visit</div><h3>Book {serviceModal}</h3><p>Choose a pet and a preferred time. We’ll confirm the details with you before your visit.</p><label>Pet name<input placeholder="e.g. Buddy" /></label><label>Preferred date<input type="date" /></label><button className="button button--primary button--full" onClick={() => { setServiceModal(null); handleProtectedAction("Your reservation request is ready to finish"); }}>Continue to booking <ArrowRight size={18} /></button></div></div>}
+      {serviceModal === "Veterinary" && <div className="modal-backdrop" role="dialog" aria-modal="true" aria-label="Veterinary booking" onClick={() => setServiceModal(null)}><div className="booking-modal veterinary-modal" onClick={(event) => event.stopPropagation()}><button className="modal-close" onClick={() => setServiceModal(null)} aria-label="Close"><X size={20} /></button><div className="modal-icon modal-icon--mint"><Stethoscope size={24} weight="duotone" /></div><div className="eyebrow">Gentle, preventative care</div><h3>Veterinary services</h3><p>Choose the care your companion needs, then select a preferred visit time.</p><div className="vet-option-grid"><button type="button" className={`vet-option ${veterinaryOption === "deworm" ? "is-selected" : ""}`} onClick={() => setVeterinaryOption("deworm")}><span>Deworm</span><small>From $15</small></button><button type="button" className={`vet-option ${veterinaryOption === "anti-rabies" ? "is-selected" : ""}`} onClick={() => setVeterinaryOption("anti-rabies")}><span>Anti-Rabies Vaccination</span><small>From $25</small></button><button type="button" className={`vet-option ${veterinaryOption === "checkup" ? "is-selected" : ""}`} onClick={() => setVeterinaryOption("checkup")}><span>Checkup</span><small>From $30</small></button><button type="button" className={`vet-option ${veterinaryOption === "full-checkup" ? "is-selected" : ""}`} onClick={() => setVeterinaryOption("full-checkup")}><span>Full Checkup</span><small>From $55</small></button></div>{veterinaryOption && <form className="vet-booking-form" onSubmit={submitVeterinary}><div className="selected-service-label"><span>Selected service</span><strong>{veterinaryOption === "anti-rabies" ? "Anti-Rabies Vaccination" : veterinaryOption === "full-checkup" ? "Full Checkup" : veterinaryOption === "deworm" ? "Deworm" : "Checkup"}</strong></div>{petsQuery.data?.length ? <label>Select pet<select required value={veterinaryPetId} onChange={(event) => setVeterinaryPetId(event.target.value)}><option value="">Choose a pet</option>{petsQuery.data.map((pet) => <option value={pet.id} key={pet.id}>{pet.name} · {pet.animal}</option>)}</select></label> : <label>Pet name<input required value={veterinaryPetName} onChange={(event) => setVeterinaryPetName(event.target.value)} placeholder="e.g. Buddy" /></label>}<label>Preferred date and time<input required type="datetime-local" value={veterinaryDate} onChange={(event) => setVeterinaryDate(event.target.value)} /></label><label>Notes <span className="optional-label">optional</span><textarea value={veterinaryNotes} onChange={(event) => setVeterinaryNotes(event.target.value)} placeholder="Anything the veterinary team should know?" rows={3} /></label><button className="button button--primary button--full" disabled={veterinaryMutation.isPending} type="submit">{veterinaryMutation.isPending ? "Requesting visit…" : "Continue to booking"} <ArrowRight size={18} /></button></form>}</div></div>}
       {dashboardModal && (
         <div
           className="modal-backdrop"

@@ -2,7 +2,7 @@ import { COOKIE_NAME } from "@shared/const";
 import { getSessionCookieOptions } from "./_core/cookies";
 import { systemRouter } from "./_core/systemRouter";
 import { protectedProcedure, publicProcedure, router } from "./_core/trpc";
-import { archivePet, createOrder, createPet, listActivePets, listOrders, updatePet, updateUserProfile } from "./db";
+import { archivePet, createOrder, createPet, createVeterinaryAppointment, listActivePets, listOrders, listVeterinaryAppointments, updatePet, updateUserProfile } from "./db";
 import { z } from "zod";
 
 const petInput = z.object({
@@ -33,6 +33,14 @@ const orderInput = z.object({
   })).min(1).max(50),
 });
 
+const veterinaryInput = z.object({
+  petId: z.number().int().positive().nullable().optional(),
+  petName: z.string().trim().min(1).max(120),
+  serviceType: z.enum(["deworm", "anti-rabies", "checkup", "full-checkup"]),
+  scheduledAt: z.coerce.date(),
+  notes: z.string().trim().max(1000).optional().or(z.literal("")),
+});
+
 export const appRouter = router({
   system: systemRouter,
   auth: router({
@@ -53,6 +61,8 @@ export const appRouter = router({
     }),
     archivePet: protectedProcedure.input(z.object({ id: z.number().int().positive() })).mutation(({ ctx, input }) => archivePet(ctx.user.id, input.id)),
     orders: protectedProcedure.query(({ ctx }) => listOrders(ctx.user.id)),
+    veterinaryAppointments: protectedProcedure.query(({ ctx }) => listVeterinaryAppointments(ctx.user.id)),
+    bookVeterinary: protectedProcedure.input(veterinaryInput).mutation(({ ctx, input }) => createVeterinaryAppointment({ ...input, userId: ctx.user.id, petId: input.petId ?? null, notes: input.notes || null, status: "pending" })),
     createOrder: protectedProcedure.input(orderInput).mutation(({ ctx, input }) => {
       const { items, ...order } = input;
       return createOrder({ ...order, userId: ctx.user.id, status: "confirmed" }, items.map((item) => ({ ...item, image: item.image || null, orderId: 0 })));

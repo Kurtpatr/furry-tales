@@ -60,3 +60,18 @@ export const orderItems = mysqlTable("orderItems", {
 });
 export type OrderItem = typeof orderItems.$inferSelect;
 export type InsertOrderItem = typeof orderItems.$inferInsert;
+
+export const veterinaryAppointments = mysqlTable("veterinaryAppointments", {
+  id: int("id").autoincrement().primaryKey(),
+  userId: int("userId").notNull().references(() => users.id),
+  petId: int("petId").references(() => pets.id),
+  petName: varchar("petName", { length: 120 }).notNull(),
+  serviceType: mysqlEnum("serviceType", ["deworm", "anti-rabies", "checkup", "full-checkup"]).notNull(),
+  scheduledAt: timestamp("scheduledAt").notNull(),
+  status: mysqlEnum("status", ["pending", "confirmed", "completed", "cancelled"]).default("pending").notNull(),
+  notes: text("notes"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+export type VeterinaryAppointment = typeof veterinaryAppointments.$inferSelect;
+export type InsertVeterinaryAppointment = typeof veterinaryAppointments.$inferInsert;
