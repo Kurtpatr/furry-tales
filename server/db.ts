@@ -1,6 +1,6 @@
 import { and, desc, eq } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
-import { InsertPet, InsertUser, pets, users } from "../drizzle/schema";
+import { InsertOrder, InsertOrderItem, InsertPet, InsertUser, orderItems, orders, pets, users } from "../drizzle/schema";
 import { ENV } from "./_core/env";
 
 let _db: ReturnType<typeof drizzle> | null = null;
@@ -24,12 +24,10 @@ export async function upsertUser(user: InsertUser): Promise<void> {
     console.warn("[Database] Cannot upsert user: database not available");
     return;
   }
-
   const values: InsertUser = { openId: user.openId };
   const updateSet: Record<string, unknown> = {};
   const textFields = ["name", "email", "loginMethod"] as const;
   type TextField = (typeof textFields)[number];
-
   const assignNullable = (field: TextField) => {
     const value = user[field];
     if (value === undefined) return;
@@ -37,22 +35,12 @@ export async function upsertUser(user: InsertUser): Promise<void> {
     values[field] = normalized;
     updateSet[field] = normalized;
   };
-
   textFields.forEach(assignNullable);
-  if (user.lastSignedIn !== undefined) {
-    values.lastSignedIn = user.lastSignedIn;
-    updateSet.lastSignedIn = user.lastSignedIn;
-  }
-  if (user.role !== undefined) {
-    values.role = user.role;
-    updateSet.role = user.role;
-  } else if (user.openId === ENV.ownerOpenId) {
-    values.role = "admin";
-    updateSet.role = "admin";
-  }
+  if (user.lastSignedIn !== undefined) { values.lastSignedIn = user.lastSignedIn; updateSet.lastSignedIn = user.lastSignedIn; }
+  if (user.role !== undefined) { values.role = user.role; updateSet.role = user.role; }
+  else if (user.openId === ENV.ownerOpenId) { values.role = "admin"; updateSet.role = "admin"; }
   if (!values.lastSignedIn) values.lastSignedIn = new Date();
   if (Object.keys(updateSet).length === 0) updateSet.lastSignedIn = new Date();
-
   await db.insert(users).values(values).onDuplicateKeyUpdate({ set: updateSet });
 }
 
@@ -96,4 +84,23 @@ export async function archivePet(userId: number, petId: number) {
   if (!db) throw new Error("Database is not available");
   await db.update(pets).set({ status: "archived", updatedAt: new Date() }).where(and(eq(pets.id, petId), eq(pets.userId, userId)));
   return { success: true } as const;
+}
+
+export async function createOrder(order: InsertOrder, items: InsertOrderItem[]) {
+  const db = await getDb();
+  if (!db) throw new Error("Database is not available");
+  const result = await db.insert(orders).values(order);
+  const orderId = Number(result[0].insertId);
+  await db.insert(orderItems).values(items.map((item) => ({ ...item, orderId })));
+  return db.select().from(orders).where(eq(orders.id, orderId)).limit(1).then((rows) => rows[0]);
+}
+
+export async function listOrders(userId: number) {
+  const db = await getDb();
+  if (!db) return [];
+  const userOrders = await db.select().from(orders).where(eq(orders.userId, userId)).orderBy(desc(orders.createdAt));
+  if (!userOrders.length) return [];
+  const allItems = await db.select().from(orderItems).where(eq(orderItems.orderId, userOrders[0].id));
+  const itemRows = await Promise.all(userOrders.slice(1).map((order) => db.select().from(orderItems).where(eq(orderItems.orderId, order.id))));
+  return userOrders.map((order, index) => ({ ...order, items: index === 0 ? allItems : itemRows[index - 1] }));
 }

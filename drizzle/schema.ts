@@ -11,7 +11,6 @@ export const users = mysqlTable("users", {
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
   lastSignedIn: timestamp("lastSignedIn").defaultNow().notNull(),
 });
-
 export type User = typeof users.$inferSelect;
 export type InsertUser = typeof users.$inferInsert;
 
@@ -29,6 +28,35 @@ export const pets = mysqlTable("pets", {
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
 });
-
 export type Pet = typeof pets.$inferSelect;
 export type InsertPet = typeof pets.$inferInsert;
+
+export const orders = mysqlTable("orders", {
+  id: int("id").autoincrement().primaryKey(),
+  userId: int("userId").notNull().references(() => users.id),
+  status: mysqlEnum("status", ["pending", "confirmed", "shipped", "delivered", "cancelled"]).default("confirmed").notNull(),
+  subtotalCents: int("subtotalCents").notNull(),
+  deliveryCents: int("deliveryCents").notNull(),
+  totalCents: int("totalCents").notNull(),
+  customerName: varchar("customerName", { length: 160 }).notNull(),
+  address: varchar("address", { length: 320 }).notNull(),
+  city: varchar("city", { length: 120 }).notNull(),
+  phone: varchar("phone", { length: 40 }).notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+export type Order = typeof orders.$inferSelect;
+export type InsertOrder = typeof orders.$inferInsert;
+
+export const orderItems = mysqlTable("orderItems", {
+  id: int("id").autoincrement().primaryKey(),
+  orderId: int("orderId").notNull().references(() => orders.id),
+  productId: varchar("productId", { length: 160 }).notNull(),
+  name: varchar("name", { length: 160 }).notNull(),
+  type: varchar("type", { length: 160 }).notNull(),
+  priceCents: int("priceCents").notNull(),
+  quantity: int("quantity").notNull(),
+  image: text("image"),
+});
+export type OrderItem = typeof orderItems.$inferSelect;
+export type InsertOrderItem = typeof orderItems.$inferInsert;
