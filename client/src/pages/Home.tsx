@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useAuth } from "@/_core/hooks/useAuth";
 import { startLogin } from "@/const";
+import { useCart } from "@/lib/cart";
 import { trpc } from "@/lib/trpc";
 import {
   ArrowRight,
@@ -164,7 +165,7 @@ export default function Home() {
   });
   const [promoIndex, setPromoIndex] = useState(0);
   const [isPaused, setIsPaused] = useState(false);
-  const [cartCount, setCartCount] = useState(0);
+  const cart = useCart();
   const [mobileOpen, setMobileOpen] = useState(false);
   const [toast, setToast] = useState("");
   const [serviceModal, setServiceModal] = useState<string | null>(null);
@@ -260,9 +261,9 @@ export default function Home() {
             <button onClick={() => { scrollToId("about"); setMobileOpen(false); }}>About us</button>
           </nav>
           <div className="nav-actions">
-            <button className="icon-button cart-button" onClick={() => scrollToId("store")} aria-label={`Cart with ${cartCount} items`}>
+            <button className="icon-button cart-button" onClick={() => { window.location.href = "/cart"; }} aria-label={`Cart with ${cart.count} items`}>
               <ShoppingBag size={21} weight="regular" />
-              {cartCount > 0 && <span className="cart-count">{cartCount}</span>}
+              {cart.count > 0 && <span className="cart-count">{cart.count}</span>}
             </button>
             {isAuthenticated ? (
                 <button className="account-chip" onClick={() => { window.location.href = "/dashboard"; }}>
@@ -335,7 +336,7 @@ export default function Home() {
         <section className="section section--store" id="store">
           <div className="container">
             <div className="shop-header"><div><div className="eyebrow">Small joys, delivered</div><h2>Good things for<br /><em>good companions.</em></h2></div><button className="text-button" onClick={() => showToast("Full store coming next — these are our first picks!")}>Explore the store <ArrowRight size={18} /></button></div>
-            <div className="product-grid">{products.map((product) => <article className="product-card" key={product.name}><div className="product-image"><AssetImage name={assets[product.image]} fallback={fallbackImages[product.image]} alt={product.name} className="cover-image" /><span className="product-tag">FURRY PICK</span></div><div className="product-info"><div><h3>{product.name}</h3><p>{product.type}</p></div><strong>{product.price}</strong></div><button className="add-button" onClick={() => { setCartCount((count) => count + 1); showToast(`${product.name} added to cart`); }}><Plus size={17} weight="bold" /> Add to cart</button></article>)}</div>
+            <div className="product-grid">{products.map((product) => { const item = { id: product.name.toLowerCase().replaceAll(" ", "-"), name: product.name, type: product.type, price: Number(product.price.replace("$", "")), image: fallbackImages[product.image] }; return <article className="product-card" key={product.name}><div className="product-image"><AssetImage name={assets[product.image]} fallback={fallbackImages[product.image]} alt={product.name} className="cover-image" /><span className="product-tag">FURRY PICK</span></div><div className="product-info"><div><h3>{product.name}</h3><p>{product.type}</p></div><strong>{product.price}</strong></div><div className="product-actions"><button className="add-button" onClick={() => { cart.add(item); showToast(`${product.name} added to cart`); }}><Plus size={17} weight="bold" /> Add to cart</button><button className="buy-button" onClick={() => { cart.add(item); window.location.href = "/cart"; }}>Buy now <ArrowRight size={16} /></button></div></article>; })}</div>
           </div>
         </section>
 

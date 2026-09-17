@@ -15,6 +15,7 @@ import {
   Plus,
   Scissors,
   ShieldCheck,
+  ShoppingBag,
   SignOut,
   Stethoscope,
   UserCircle,
@@ -91,6 +92,7 @@ export default function Dashboard() {
           <button className={activeTab === "overview" ? "is-active" : ""} onClick={() => selectTab("overview")}><House size={19} /> Overview</button>
           <button className={activeTab === "pets" ? "is-active" : ""} onClick={() => selectTab("pets")}><PawPrint size={19} /> My pets <b>{pets.length}</b></button>
           <button className={activeTab === "services" ? "is-active" : ""} onClick={() => selectTab("services")}><CalendarBlank size={19} /> Services</button>
+          <button onClick={() => navigate("/cart")}><ShoppingBag size={19} /> Store & cart</button>
           <span className="dashboard-nav-label dashboard-nav-label--spaced">Account</span>
           <button className={activeTab === "profile" ? "is-active" : ""} onClick={() => selectTab("profile")}><UserCircle size={19} /> Profile</button>
           <button onClick={() => setNotice("Notifications are all caught up")}><Bell size={19} /> Notifications <span className="notification-dot" /></button>
