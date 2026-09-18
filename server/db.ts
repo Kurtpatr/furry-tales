@@ -1,6 +1,6 @@
 import { and, desc, eq } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
-import { InsertOrder, InsertOrderItem, InsertPet, InsertUser, InsertVeterinaryAppointment, orderItems, orders, pets, users, veterinaryAppointments } from "../drizzle/schema";
+import { InsertGroomingAppointment, InsertOrder, InsertOrderItem, InsertPet, InsertUser, InsertVeterinaryAppointment, groomingAppointments, orderItems, orders, pets, users, veterinaryAppointments } from "../drizzle/schema";
 import { ENV } from "./_core/env";
 
 let _db: ReturnType<typeof drizzle> | null = null;
@@ -117,4 +117,18 @@ export async function listVeterinaryAppointments(userId: number) {
   const db = await getDb();
   if (!db) return [];
   return db.select().from(veterinaryAppointments).where(eq(veterinaryAppointments.userId, userId)).orderBy(desc(veterinaryAppointments.scheduledAt));
+}
+
+export async function createGroomingAppointment(data: InsertGroomingAppointment) {
+  const db = await getDb();
+  if (!db) throw new Error("Database is not available");
+  const result = await db.insert(groomingAppointments).values(data);
+  const appointmentId = Number(result[0].insertId);
+  return db.select().from(groomingAppointments).where(eq(groomingAppointments.id, appointmentId)).limit(1).then((rows) => rows[0]);
+}
+
+export async function listGroomingAppointments(userId: number) {
+  const db = await getDb();
+  if (!db) return [];
+  return db.select().from(groomingAppointments).where(eq(groomingAppointments.userId, userId)).orderBy(desc(groomingAppointments.scheduledAt));
 }
