@@ -90,3 +90,18 @@ export const groomingAppointments = mysqlTable("groomingAppointments", {
 });
 export type GroomingAppointment = typeof groomingAppointments.$inferSelect;
 export type InsertGroomingAppointment = typeof groomingAppointments.$inferInsert;
+
+export const daycareReservations = mysqlTable("daycareReservations", {
+  id: int("id").autoincrement().primaryKey(),
+  userId: int("userId").notNull().references(() => users.id),
+  petId: int("petId").references(() => pets.id),
+  petName: varchar("petName", { length: 120 }).notNull(),
+  stayType: mysqlEnum("stayType", ["half-day", "full-day"]).notNull(),
+  scheduledAt: timestamp("scheduledAt").notNull(),
+  status: mysqlEnum("status", ["pending", "confirmed", "completed", "cancelled"]).default("pending").notNull(),
+  notes: text("notes"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+export type DaycareReservation = typeof daycareReservations.$inferSelect;
+export type InsertDaycareReservation = typeof daycareReservations.$inferInsert;

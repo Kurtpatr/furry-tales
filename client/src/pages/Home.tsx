@@ -40,6 +40,7 @@ type GroomingService =
   | "full-groom"
   | "haircut-trim"
   | "nail-trim";
+type DaycareStay = "half-day" | "full-day";
 
 type AssetImageProps = {
   name: string;
@@ -295,6 +296,18 @@ export default function Home() {
         error.message || "We could not request this grooming appointment"
       ),
   });
+  const daycareMutation = trpc.account.bookDaycare.useMutation({
+    onSuccess: () => {
+      trpcUtils.account.daycareReservations.invalidate();
+      setServiceModal(null);
+      setDaycareOption(null);
+      setToast("Daycare reservation requested");
+    },
+    onError: error =>
+      setToast(
+        error.message || "We could not request this Daycare reservation"
+      ),
+  });
   const [promoIndex, setPromoIndex] = useState(0);
   const [isPaused, setIsPaused] = useState(false);
   const cart = useCart();
@@ -314,6 +327,11 @@ export default function Home() {
   const [groomingPetName, setGroomingPetName] = useState("");
   const [groomingDate, setGroomingDate] = useState("");
   const [groomingNotes, setGroomingNotes] = useState("");
+  const [daycareOption, setDaycareOption] = useState<DaycareStay | null>(null);
+  const [daycarePetId, setDaycarePetId] = useState("");
+  const [daycarePetName, setDaycarePetName] = useState("");
+  const [daycareDate, setDaycareDate] = useState("");
+  const [daycareNotes, setDaycareNotes] = useState("");
   const [dashboardModal, setDashboardModal] = useState<
     "profile" | "pet" | null
   >(null);
@@ -430,6 +448,37 @@ export default function Home() {
       serviceType: groomingOption,
       scheduledAt: groomingDate,
       notes: groomingNotes,
+    });
+  }
+
+  function openDaycare() {
+    if (!isAuthenticated)
+      return handleProtectedAction("Log in to reserve a Daycare stay");
+    setServiceModal("Daycare");
+    setDaycareOption(null);
+    setDaycarePetId(
+      petsQuery.data?.[0]?.id ? String(petsQuery.data[0].id) : ""
+    );
+    setDaycarePetName(petsQuery.data?.[0]?.name ?? "");
+  }
+
+  function submitDaycare(event: React.FormEvent) {
+    event.preventDefault();
+    const selectedPet = petsQuery.data?.find(
+      pet => String(pet.id) === daycarePetId
+    );
+    if (
+      !daycareOption ||
+      !daycareDate ||
+      !(selectedPet?.name || daycarePetName.trim())
+    )
+      return;
+    daycareMutation.mutate({
+      petId: selectedPet?.id ?? null,
+      petName: selectedPet?.name ?? daycarePetName.trim(),
+      stayType: daycareOption,
+      scheduledAt: daycareDate,
+      notes: daycareNotes,
     });
   }
 
@@ -780,7 +829,7 @@ export default function Home() {
                           ? openVeterinary()
                           : title === "Grooming"
                             ? openGrooming()
-                            : setServiceModal(title)
+                            : openDaycare()
                       }
                       aria-label={`Book ${title}`}
                     >
@@ -1177,7 +1226,8 @@ export default function Home() {
 
       {serviceModal &&
         serviceModal !== "Veterinary" &&
-        serviceModal !== "Grooming" && (
+        serviceModal !== "Grooming" &&
+        serviceModal !== "Daycare" && (
           <div
             className="modal-backdrop"
             role="dialog"
@@ -1493,6 +1543,122 @@ export default function Home() {
                 >
                   {groomingMutation.isPending
                     ? "Requesting visit…"
+                    : "Continue to booking"}{" "}
+                  <ArrowRight size={18} />
+                </button>
+              </form>
+            )}
+          </div>
+        </div>
+      )}
+      {serviceModal === "Daycare" && (
+        <div
+          className="modal-backdrop"
+          role="dialog"
+          aria-modal="true"
+          aria-label="Daycare booking"
+          onClick={() => setServiceModal(null)}
+        >
+          <div
+            className="booking-modal daycare-modal"
+            onClick={event => event.stopPropagation()}
+          >
+            <button
+              className="modal-close"
+              onClick={() => setServiceModal(null)}
+              aria-label="Close"
+            >
+              <X size={20} />
+            </button>
+            <div className="modal-icon modal-icon--lavender">
+              <House size={24} weight="duotone" />
+            </div>
+            <div className="eyebrow">A safe, social place to play</div>
+            <h3>Daycare stays</h3>
+            <p>
+              Choose a half-day or full-day stay, then reserve a date for your
+              companion’s next play day.
+            </p>
+            <div className="daycare-option-grid">
+              <button
+                type="button"
+                className={`daycare-option ${daycareOption === "half-day" ? "is-selected" : ""}`}
+                onClick={() => setDaycareOption("half-day")}
+              >
+                <span>Half-day stay</span>
+                <small>Up to 5 hours · From $18</small>
+              </button>
+              <button
+                type="button"
+                className={`daycare-option ${daycareOption === "full-day" ? "is-selected" : ""}`}
+                onClick={() => setDaycareOption("full-day")}
+              >
+                <span>Full-day stay</span>
+                <small>Up to 10 hours · From $30</small>
+              </button>
+            </div>
+            {daycareOption && (
+              <form className="daycare-booking-form" onSubmit={submitDaycare}>
+                <div className="selected-service-label selected-service-label--lavender">
+                  <span>Selected stay</span>
+                  <strong>
+                    {daycareOption === "half-day"
+                      ? "Half-day stay"
+                      : "Full-day stay"}
+                  </strong>
+                </div>
+                {petsQuery.data?.length ? (
+                  <label>
+                    Select pet
+                    <select
+                      required
+                      value={daycarePetId}
+                      onChange={event => setDaycarePetId(event.target.value)}
+                    >
+                      <option value="">Choose a pet</option>
+                      {petsQuery.data.map(pet => (
+                        <option value={pet.id} key={pet.id}>
+                          {pet.name} · {pet.animal}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                ) : (
+                  <label>
+                    Pet name
+                    <input
+                      required
+                      value={daycarePetName}
+                      onChange={event => setDaycarePetName(event.target.value)}
+                      placeholder="e.g. Buddy"
+                    />
+                  </label>
+                )}
+                <label>
+                  Preferred date
+                  <input
+                    required
+                    type="date"
+                    value={daycareDate}
+                    onChange={event => setDaycareDate(event.target.value)}
+                  />
+                </label>
+                <label>
+                  Notes <span className="optional-label">optional</span>
+                  <textarea
+                    value={daycareNotes}
+                    onChange={event => setDaycareNotes(event.target.value)}
+                    placeholder="Food, play preferences, or anything else?"
+                    rows={3}
+                  />
+                </label>
+                <button
+                  className="button button--primary button--full"
+                  disabled={daycareMutation.isPending}
+                  type="submit"
+                >
+                  {daycareMutation.isPending
+                    ? "Requesting stay…"
                     : "Continue to booking"}{" "}
                   <ArrowRight size={18} />
                 </button>

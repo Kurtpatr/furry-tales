@@ -74,6 +74,10 @@ function groomingLabel(serviceType: string) {
         : "Nail Trim";
 }
 
+function daycareLabel(stayType: string) {
+  return stayType === "half-day" ? "Half-day stay" : "Full-day stay";
+}
+
 export default function Dashboard() {
   const [, navigate] = useLocation();
   const { user, isAuthenticated, loading, logout } = useAuth();
@@ -89,6 +93,9 @@ export default function Dashboard() {
     { enabled: isAuthenticated }
   );
   const groomingQuery = trpc.account.groomingAppointments.useQuery(undefined, {
+    enabled: isAuthenticated,
+  });
+  const daycareQuery = trpc.account.daycareReservations.useQuery(undefined, {
     enabled: isAuthenticated,
   });
   const profileMutation = trpc.account.updateProfile.useMutation({
@@ -205,6 +212,7 @@ export default function Dashboard() {
   const orders = ordersQuery.data ?? [];
   const veterinaryAppointments = veterinaryQuery.data ?? [];
   const groomingAppointments = groomingQuery.data ?? [];
+  const daycareReservations = daycareQuery.data ?? [];
   const tabLabel = {
     overview: "Overview",
     pets: "My pets",
@@ -769,6 +777,53 @@ export default function Dashboard() {
                     <small>
                       New grooming requests will appear here with the pet and
                       scheduled package.
+                    </small>
+                  </div>
+                )}
+              </div>
+              <div className="dashboard-panel daycare-history-panel">
+                <div className="panel-heading">
+                  <div>
+                    <span className="eyebrow">Daycare stays</span>
+                    <h2>Reserved for your pets</h2>
+                  </div>
+                  <House size={25} className="panel-heading-icon" />
+                </div>
+                {daycareReservations.length ? (
+                  <div className="daycare-history-list">
+                    {daycareReservations.map(reservation => (
+                      <div className="daycare-history-row" key={reservation.id}>
+                        <span className="daycare-history-icon">
+                          <PawPrint size={17} weight="fill" />
+                        </span>
+                        <div>
+                          <strong>{reservation.petName}</strong>
+                          <small>
+                            {daycareLabel(reservation.stayType)} ·{" "}
+                            {new Date(
+                              reservation.scheduledAt
+                            ).toLocaleDateString(undefined, {
+                              month: "short",
+                              day: "numeric",
+                              year: "numeric",
+                            })}
+                          </small>
+                        </div>
+                        <span
+                          className={`status-pill status-pill--${reservation.status === "pending" ? "pending" : "ready"}`}
+                        >
+                          {reservation.status}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="empty-panel daycare-empty">
+                    <House size={25} />
+                    <p>No Daycare stays reserved yet.</p>
+                    <small>
+                      New reservations will appear here with the pet and stay
+                      type.
                     </small>
                   </div>
                 )}

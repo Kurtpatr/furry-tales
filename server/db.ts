@@ -1,6 +1,6 @@
 import { and, desc, eq } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
-import { InsertGroomingAppointment, InsertOrder, InsertOrderItem, InsertPet, InsertUser, InsertVeterinaryAppointment, groomingAppointments, orderItems, orders, pets, users, veterinaryAppointments } from "../drizzle/schema";
+import { InsertDaycareReservation, InsertGroomingAppointment, InsertOrder, InsertOrderItem, InsertPet, InsertUser, InsertVeterinaryAppointment, daycareReservations, groomingAppointments, orderItems, orders, pets, users, veterinaryAppointments } from "../drizzle/schema";
 import { ENV } from "./_core/env";
 
 let _db: ReturnType<typeof drizzle> | null = null;
@@ -131,4 +131,18 @@ export async function listGroomingAppointments(userId: number) {
   const db = await getDb();
   if (!db) return [];
   return db.select().from(groomingAppointments).where(eq(groomingAppointments.userId, userId)).orderBy(desc(groomingAppointments.scheduledAt));
+}
+
+export async function createDaycareReservation(data: InsertDaycareReservation) {
+  const db = await getDb();
+  if (!db) throw new Error("Database is not available");
+  const result = await db.insert(daycareReservations).values(data);
+  const reservationId = Number(result[0].insertId);
+  return db.select().from(daycareReservations).where(eq(daycareReservations.id, reservationId)).limit(1).then((rows) => rows[0]);
+}
+
+export async function listDaycareReservations(userId: number) {
+  const db = await getDb();
+  if (!db) return [];
+  return db.select().from(daycareReservations).where(eq(daycareReservations.userId, userId)).orderBy(desc(daycareReservations.scheduledAt));
 }

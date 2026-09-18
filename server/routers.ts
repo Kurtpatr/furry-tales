@@ -2,7 +2,7 @@ import { COOKIE_NAME } from "@shared/const";
 import { getSessionCookieOptions } from "./_core/cookies";
 import { systemRouter } from "./_core/systemRouter";
 import { protectedProcedure, publicProcedure, router } from "./_core/trpc";
-import { archivePet, createGroomingAppointment, createOrder, createPet, createVeterinaryAppointment, listActivePets, listGroomingAppointments, listOrders, listVeterinaryAppointments, updatePet, updateUserProfile } from "./db";
+import { archivePet, createDaycareReservation, createGroomingAppointment, createOrder, createPet, createVeterinaryAppointment, listActivePets, listDaycareReservations, listGroomingAppointments, listOrders, listVeterinaryAppointments, updatePet, updateUserProfile } from "./db";
 import { z } from "zod";
 
 const petInput = z.object({
@@ -49,6 +49,14 @@ const groomingInput = z.object({
   notes: z.string().trim().max(1000).optional().or(z.literal("")),
 });
 
+const daycareInput = z.object({
+  petId: z.number().int().positive().nullable().optional(),
+  petName: z.string().trim().min(1).max(120),
+  stayType: z.enum(["half-day", "full-day"]),
+  scheduledAt: z.coerce.date(),
+  notes: z.string().trim().max(1000).optional().or(z.literal("")),
+});
+
 export const appRouter = router({
   system: systemRouter,
   auth: router({
@@ -73,6 +81,8 @@ export const appRouter = router({
     bookVeterinary: protectedProcedure.input(veterinaryInput).mutation(({ ctx, input }) => createVeterinaryAppointment({ ...input, userId: ctx.user.id, petId: input.petId ?? null, notes: input.notes || null, status: "pending" })),
     groomingAppointments: protectedProcedure.query(({ ctx }) => listGroomingAppointments(ctx.user.id)),
     bookGrooming: protectedProcedure.input(groomingInput).mutation(({ ctx, input }) => createGroomingAppointment({ ...input, userId: ctx.user.id, petId: input.petId ?? null, notes: input.notes || null, status: "pending" })),
+    daycareReservations: protectedProcedure.query(({ ctx }) => listDaycareReservations(ctx.user.id)),
+    bookDaycare: protectedProcedure.input(daycareInput).mutation(({ ctx, input }) => createDaycareReservation({ ...input, userId: ctx.user.id, petId: input.petId ?? null, notes: input.notes || null, status: "pending" })),
     createOrder: protectedProcedure.input(orderInput).mutation(({ ctx, input }) => {
       const { items, ...order } = input;
       return createOrder({ ...order, userId: ctx.user.id, status: "confirmed" }, items.map((item) => ({ ...item, image: item.image || null, orderId: 0 })));
