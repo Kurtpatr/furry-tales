@@ -1,6 +1,6 @@
-import { and, desc, eq } from "drizzle-orm";
+import { and, desc, eq, isNull } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
-import { InsertDaycareReservation, InsertGroomingAppointment, InsertOrder, InsertOrderItem, InsertPet, InsertUser, InsertVeterinaryAppointment, daycareReservations, groomingAppointments, orderItems, orders, pets, users, veterinaryAppointments } from "../drizzle/schema";
+import { InsertDaycareReservation, InsertGroomingAppointment, InsertNotification, InsertOrder, InsertOrderItem, InsertPet, InsertUser, InsertVeterinaryAppointment, daycareReservations, groomingAppointments, notifications, orderItems, orders, pets, users, veterinaryAppointments } from "../drizzle/schema";
 import { ENV } from "./_core/env";
 
 let _db: ReturnType<typeof drizzle> | null = null;
@@ -145,4 +145,30 @@ export async function listDaycareReservations(userId: number) {
   const db = await getDb();
   if (!db) return [];
   return db.select().from(daycareReservations).where(eq(daycareReservations.userId, userId)).orderBy(desc(daycareReservations.scheduledAt));
+}
+
+export async function createNotification(data: InsertNotification) {
+  const db = await getDb();
+  if (!db) return;
+  await db.insert(notifications).values(data);
+}
+
+export async function listNotifications(userId: number) {
+  const db = await getDb();
+  if (!db) return [];
+  return db.select().from(notifications).where(eq(notifications.userId, userId)).orderBy(desc(notifications.createdAt)).limit(50);
+}
+
+export async function markNotificationRead(userId: number, notificationId: number) {
+  const db = await getDb();
+  if (!db) throw new Error("Database is not available");
+  await db.update(notifications).set({ readAt: new Date() }).where(and(eq(notifications.id, notificationId), eq(notifications.userId, userId)));
+  return { success: true } as const;
+}
+
+export async function markAllNotificationsRead(userId: number) {
+  const db = await getDb();
+  if (!db) throw new Error("Database is not available");
+  await db.update(notifications).set({ readAt: new Date() }).where(and(eq(notifications.userId, userId), isNull(notifications.readAt)));
+  return { success: true } as const;
 }

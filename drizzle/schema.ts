@@ -105,3 +105,15 @@ export const daycareReservations = mysqlTable("daycareReservations", {
 });
 export type DaycareReservation = typeof daycareReservations.$inferSelect;
 export type InsertDaycareReservation = typeof daycareReservations.$inferInsert;
+
+export const notifications = mysqlTable("notifications", {
+  id: int("id").autoincrement().primaryKey(),
+  userId: int("userId").notNull().references(() => users.id),
+  type: mysqlEnum("type", ["booking", "order", "reminder", "account"]).notNull(),
+  title: varchar("title", { length: 180 }).notNull(),
+  message: text("message").notNull(),
+  readAt: timestamp("readAt"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+export type Notification = typeof notifications.$inferSelect;
+export type InsertNotification = typeof notifications.$inferInsert;

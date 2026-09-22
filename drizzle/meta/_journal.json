@@ -43,6 +43,13 @@
       "when": 1789738721793,
       "tag": "0005_third_captain_flint",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "5",
+      "when": 1790086782669,
+      "tag": "0006_curved_spectrum",
+      "breakpoints": true
     }
   ]
 }

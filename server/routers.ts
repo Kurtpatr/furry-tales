@@ -2,7 +2,7 @@ import { COOKIE_NAME } from "@shared/const";
 import { getSessionCookieOptions } from "./_core/cookies";
 import { systemRouter } from "./_core/systemRouter";
 import { protectedProcedure, publicProcedure, router } from "./_core/trpc";
-import { archivePet, createDaycareReservation, createGroomingAppointment, createOrder, createPet, createVeterinaryAppointment, listActivePets, listDaycareReservations, listGroomingAppointments, listOrders, listVeterinaryAppointments, updatePet, updateUserProfile } from "./db";
+import { archivePet, createDaycareReservation, createGroomingAppointment, createNotification, createOrder, createPet, createVeterinaryAppointment, listActivePets, listDaycareReservations, listGroomingAppointments, listNotifications, listOrders, listVeterinaryAppointments, markAllNotificationsRead, markNotificationRead, updatePet, updateUserProfile } from "./db";
 import { z } from "zod";
 
 const petInput = z.object({
@@ -78,14 +78,31 @@ export const appRouter = router({
     archivePet: protectedProcedure.input(z.object({ id: z.number().int().positive() })).mutation(({ ctx, input }) => archivePet(ctx.user.id, input.id)),
     orders: protectedProcedure.query(({ ctx }) => listOrders(ctx.user.id)),
     veterinaryAppointments: protectedProcedure.query(({ ctx }) => listVeterinaryAppointments(ctx.user.id)),
-    bookVeterinary: protectedProcedure.input(veterinaryInput).mutation(({ ctx, input }) => createVeterinaryAppointment({ ...input, userId: ctx.user.id, petId: input.petId ?? null, notes: input.notes || null, status: "pending" })),
+    bookVeterinary: protectedProcedure.input(veterinaryInput).mutation(async ({ ctx, input }) => {
+      const appointment = await createVeterinaryAppointment({ ...input, userId: ctx.user.id, petId: input.petId ?? null, notes: input.notes || null, status: "pending" });
+      await createNotification({ userId: ctx.user.id, type: "booking", title: "Veterinary request received", message: `${input.petName} has a ${input.serviceType.replace("-", " ")} request waiting for confirmation.`, readAt: null });
+      return appointment;
+    }),
     groomingAppointments: protectedProcedure.query(({ ctx }) => listGroomingAppointments(ctx.user.id)),
-    bookGrooming: protectedProcedure.input(groomingInput).mutation(({ ctx, input }) => createGroomingAppointment({ ...input, userId: ctx.user.id, petId: input.petId ?? null, notes: input.notes || null, status: "pending" })),
+    bookGrooming: protectedProcedure.input(groomingInput).mutation(async ({ ctx, input }) => {
+      const appointment = await createGroomingAppointment({ ...input, userId: ctx.user.id, petId: input.petId ?? null, notes: input.notes || null, status: "pending" });
+      await createNotification({ userId: ctx.user.id, type: "booking", title: "Grooming request received", message: `${input.petName} has a ${input.serviceType.replaceAll("-", " ")} request waiting for confirmation.`, readAt: null });
+      return appointment;
+    }),
     daycareReservations: protectedProcedure.query(({ ctx }) => listDaycareReservations(ctx.user.id)),
-    bookDaycare: protectedProcedure.input(daycareInput).mutation(({ ctx, input }) => createDaycareReservation({ ...input, userId: ctx.user.id, petId: input.petId ?? null, notes: input.notes || null, status: "pending" })),
-    createOrder: protectedProcedure.input(orderInput).mutation(({ ctx, input }) => {
+    bookDaycare: protectedProcedure.input(daycareInput).mutation(async ({ ctx, input }) => {
+      const reservation = await createDaycareReservation({ ...input, userId: ctx.user.id, petId: input.petId ?? null, notes: input.notes || null, status: "pending" });
+      await createNotification({ userId: ctx.user.id, type: "booking", title: "Daycare reservation received", message: `${input.petName} has a ${input.stayType.replace("-", " ")} reservation waiting for confirmation.`, readAt: null });
+      return reservation;
+    }),
+    notifications: protectedProcedure.query(({ ctx }) => listNotifications(ctx.user.id)),
+    markNotificationRead: protectedProcedure.input(z.object({ id: z.number().int().positive() })).mutation(({ ctx, input }) => markNotificationRead(ctx.user.id, input.id)),
+    markAllNotificationsRead: protectedProcedure.mutation(({ ctx }) => markAllNotificationsRead(ctx.user.id)),
+    createOrder: protectedProcedure.input(orderInput).mutation(async ({ ctx, input }) => {
       const { items, ...order } = input;
-      return createOrder({ ...order, userId: ctx.user.id, status: "confirmed" }, items.map((item) => ({ ...item, image: item.image || null, orderId: 0 })));
+      const createdOrder = await createOrder({ ...order, userId: ctx.user.id, status: "confirmed" }, items.map((item) => ({ ...item, image: item.image || null, orderId: 0 })));
+      await createNotification({ userId: ctx.user.id, type: "order", title: "Order confirmed", message: `Order #${createdOrder?.id ?? ""} has been confirmed and is being prepared.`, readAt: null });
+      return createdOrder;
     }),
   }),
 });

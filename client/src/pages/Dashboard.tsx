@@ -24,7 +24,13 @@ import {
 } from "@phosphor-icons/react";
 import { useLocation } from "wouter";
 
-type DashboardTab = "overview" | "pets" | "services" | "orders" | "profile";
+type DashboardTab =
+  | "overview"
+  | "pets"
+  | "services"
+  | "orders"
+  | "profile"
+  | "notifications";
 type PetForm = {
   name: string;
   animal: "dog" | "cat" | "other";
@@ -78,6 +84,13 @@ function daycareLabel(stayType: string) {
   return stayType === "half-day" ? "Half-day stay" : "Full-day stay";
 }
 
+function notificationIcon(type: string) {
+  if (type === "booking") return <CalendarBlank size={20} weight="duotone" />;
+  if (type === "order") return <ShoppingBag size={20} weight="duotone" />;
+  if (type === "reminder") return <Clock size={20} weight="duotone" />;
+  return <ShieldCheck size={20} weight="duotone" />;
+}
+
 export default function Dashboard() {
   const [, navigate] = useLocation();
   const { user, isAuthenticated, loading, logout } = useAuth();
@@ -96,6 +109,9 @@ export default function Dashboard() {
     enabled: isAuthenticated,
   });
   const daycareQuery = trpc.account.daycareReservations.useQuery(undefined, {
+    enabled: isAuthenticated,
+  });
+  const notificationsQuery = trpc.account.notifications.useQuery(undefined, {
     enabled: isAuthenticated,
   });
   const profileMutation = trpc.account.updateProfile.useMutation({
@@ -130,6 +146,19 @@ export default function Dashboard() {
     },
     onError: error => setNotice(error.message),
   });
+  const markNotificationReadMutation =
+    trpc.account.markNotificationRead.useMutation({
+      onSuccess: () => utils.account.notifications.invalidate(),
+      onError: error => setNotice(error.message),
+    });
+  const markAllNotificationsReadMutation =
+    trpc.account.markAllNotificationsRead.useMutation({
+      onSuccess: () => {
+        utils.account.notifications.invalidate();
+        setNotice("Notifications marked as read");
+      },
+      onError: error => setNotice(error.message),
+    });
 
   const [activeTab, setActiveTab] = useState<DashboardTab>("overview");
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -213,12 +242,17 @@ export default function Dashboard() {
   const veterinaryAppointments = veterinaryQuery.data ?? [];
   const groomingAppointments = groomingQuery.data ?? [];
   const daycareReservations = daycareQuery.data ?? [];
+  const notifications = notificationsQuery.data ?? [];
+  const unreadNotifications = notifications.filter(
+    notification => !notification.readAt
+  );
   const tabLabel = {
     overview: "Overview",
     pets: "My pets",
     services: "Services",
     orders: "Order history",
     profile: "Profile",
+    notifications: "Notifications",
   }[activeTab];
 
   return (
@@ -288,9 +322,14 @@ export default function Dashboard() {
           >
             <UserCircle size={19} /> Profile
           </button>
-          <button onClick={() => setNotice("Notifications are all caught up")}>
+          <button
+            className={activeTab === "notifications" ? "is-active" : ""}
+            onClick={() => selectTab("notifications")}
+          >
             <Bell size={19} /> Notifications{" "}
-            <span className="notification-dot" />
+            {unreadNotifications.length > 0 && (
+              <span className="notification-dot" />
+            )}
           </button>
         </nav>
         <div className="dashboard-sidebar-bottom">
@@ -326,10 +365,13 @@ export default function Dashboard() {
           <div className="dashboard-top-actions">
             <button
               className="top-icon"
-              onClick={() => setNotice("You're all caught up")}
+              onClick={() => selectTab("notifications")}
               aria-label="Notifications"
             >
               <Bell size={20} />
+              {unreadNotifications.length > 0 && (
+                <span className="top-notification-dot" />
+              )}
             </button>
             <span className="top-avatar">{initials(user?.name)}</span>
           </div>
@@ -825,6 +867,105 @@ export default function Dashboard() {
                       New reservations will appear here with the pet and stay
                       type.
                     </small>
+                  </div>
+                )}
+              </div>
+            </section>
+          )}
+
+          {activeTab === "notifications" && (
+            <section className="dashboard-tab-content">
+              <div className="notification-center-panel dashboard-panel">
+                <div className="notification-center-heading">
+                  <div>
+                    <span className="eyebrow">Stay in the loop</span>
+                    <h2>Your notifications</h2>
+                    <p>
+                      Booking updates, reminders, and order activity in one calm
+                      place.
+                    </p>
+                  </div>
+                  {unreadNotifications.length > 0 && (
+                    <button
+                      className="button button--secondary notification-mark-all"
+                      onClick={() => markAllNotificationsReadMutation.mutate()}
+                      disabled={markAllNotificationsReadMutation.isPending}
+                    >
+                      <CheckCircle size={16} />
+                      {markAllNotificationsReadMutation.isPending
+                        ? "Updating…"
+                        : "Mark all as read"}
+                    </button>
+                  )}
+                </div>
+                <div className="notification-summary-row">
+                  <span className="notification-summary-icon">
+                    <Bell size={18} weight="duotone" />
+                  </span>
+                  <span>
+                    <strong>{unreadNotifications.length}</strong> unread{" "}
+                    {unreadNotifications.length === 1
+                      ? "notification"
+                      : "notifications"}
+                  </span>
+                  <span className="notification-summary-note">
+                    You’ll see new confirmations here.
+                  </span>
+                </div>
+                {notifications.length ? (
+                  <div className="notification-list">
+                    {notifications.map(notification => (
+                      <button
+                        className={`notification-row ${notification.readAt ? "is-read" : "is-unread"}`}
+                        key={notification.id}
+                        onClick={() =>
+                          !notification.readAt &&
+                          markNotificationReadMutation.mutate({
+                            id: notification.id,
+                          })
+                        }
+                      >
+                        <span
+                          className={`notification-type-icon notification-type-icon--${notification.type}`}
+                        >
+                          {notificationIcon(notification.type)}
+                        </span>
+                        <span className="notification-copy">
+                          <strong>{notification.title}</strong>
+                          <small>{notification.message}</small>
+                          <time
+                            dateTime={new Date(
+                              notification.createdAt
+                            ).toISOString()}
+                          >
+                            {new Date(notification.createdAt).toLocaleString(
+                              undefined,
+                              {
+                                month: "short",
+                                day: "numeric",
+                                hour: "numeric",
+                                minute: "2-digit",
+                              }
+                            )}
+                          </time>
+                        </span>
+                        {!notification.readAt && (
+                          <span
+                            className="notification-unread-dot"
+                            aria-label="Unread"
+                          />
+                        )}
+                      </button>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="empty-panel notification-empty">
+                    <Bell size={30} />
+                    <h3>You’re all caught up</h3>
+                    <p>
+                      New booking confirmations and care reminders will appear
+                      here.
+                    </p>
                   </div>
                 )}
               </div>
