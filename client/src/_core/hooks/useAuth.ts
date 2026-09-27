@@ -27,6 +27,15 @@ export function useAuth(options?: UseAuthOptions) {
     },
   });
 
+  const demoLoginMutation = trpc.auth.demoLogin.useMutation({
+    onSuccess: () => utils.auth.me.invalidate(),
+  });
+
+  const startDemo = useCallback(async () => {
+    await demoLoginMutation.mutateAsync();
+    await meQuery.refetch();
+  }, [demoLoginMutation, meQuery]);
+
   const logout = useCallback(async () => {
     try {
       await logoutMutation.mutateAsync();
@@ -57,8 +66,15 @@ export function useAuth(options?: UseAuthOptions) {
     );
     return {
       user: meQuery.data ?? null,
-      loading: meQuery.isLoading || logoutMutation.isPending,
-      error: meQuery.error ?? logoutMutation.error ?? null,
+      loading:
+        meQuery.isLoading ||
+        logoutMutation.isPending ||
+        demoLoginMutation.isPending,
+      error:
+        meQuery.error ??
+        logoutMutation.error ??
+        demoLoginMutation.error ??
+        null,
       isAuthenticated: Boolean(meQuery.data),
     };
   }, [
@@ -67,6 +83,8 @@ export function useAuth(options?: UseAuthOptions) {
     meQuery.isLoading,
     logoutMutation.error,
     logoutMutation.isPending,
+    demoLoginMutation.error,
+    demoLoginMutation.isPending,
   ]);
 
   useEffect(() => {
@@ -93,6 +111,7 @@ export function useAuth(options?: UseAuthOptions) {
   return {
     ...state,
     refresh: () => meQuery.refetch(),
+    startDemo,
     logout,
   };
 }

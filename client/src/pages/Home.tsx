@@ -1,6 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
 import { useAuth } from "@/_core/hooks/useAuth";
-import { startLogin } from "@/const";
 import { useCart } from "@/lib/cart";
 import { trpc } from "@/lib/trpc";
 import {
@@ -234,7 +233,7 @@ function scrollToId(id: string) {
 }
 
 export default function Home() {
-  const { user, isAuthenticated, loading, logout } = useAuth();
+  const { user, isAuthenticated, loading, logout, startDemo } = useAuth();
   const trpcUtils = trpc.useUtils();
   const petsQuery = trpc.account.pets.useQuery(undefined, {
     enabled: isAuthenticated,
@@ -376,13 +375,18 @@ export default function Home() {
     setToast(message);
   }
 
-  function handleLogin() {
-    startLogin();
+  async function handleLogin() {
+    try {
+      await startDemo();
+      showToast("Demo account ready — welcome to Furry Tales");
+    } catch {
+      showToast("We could not open demo mode. Please try again.");
+    }
   }
 
   function handleProtectedAction(message: string) {
     if (!isAuthenticated) {
-      showToast("Log in to continue — we'll bring you right back here.");
+      showToast("Opening a private demo account…");
       window.setTimeout(handleLogin, 650);
       return;
     }
@@ -453,7 +457,7 @@ export default function Home() {
 
   function openDaycare() {
     if (!isAuthenticated)
-      return handleProtectedAction("Log in to reserve a Daycare stay");
+      return handleProtectedAction("Open demo mode to reserve a Daycare stay");
     setServiceModal("Daycare");
     setDaycareOption(null);
     setDaycarePetId(
@@ -484,14 +488,14 @@ export default function Home() {
 
   function openProfileEditor() {
     if (!isAuthenticated)
-      return handleProtectedAction("Log in to edit your profile");
+      return handleProtectedAction("Open demo mode to edit your profile");
     setProfileForm({ name: user?.name ?? "", email: user?.email ?? "" });
     setDashboardModal("profile");
   }
 
   function openPetEditor(pet?: NonNullable<typeof petsQuery.data>[number]) {
     if (!isAuthenticated)
-      return handleProtectedAction("Log in to manage your pets");
+      return handleProtectedAction("Open demo mode to manage your pets");
     setEditingPetId(pet?.id ?? null);
     setPetForm({
       name: pet?.name ?? "",
@@ -616,7 +620,7 @@ export default function Home() {
                 className="button button--small button--dark"
                 onClick={handleLogin}
               >
-                <UserCircle size={18} /> Log in
+                <UserCircle size={18} /> Try demo account
               </button>
             )}
           </div>
@@ -1071,7 +1075,7 @@ export default function Home() {
                   <div className="preview-pets-heading">
                     <span>My pets</span>
                     <button onClick={() => openPetEditor()}>
-                      {isAuthenticated ? "Manage" : "Log in"}
+                      {isAuthenticated ? "Manage" : "Try demo mode"}
                     </button>
                   </div>
                   {isAuthenticated && petsQuery.data?.length ? (

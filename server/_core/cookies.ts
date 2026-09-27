@@ -1,4 +1,7 @@
 import type { CookieOptions, Request } from "express";
+import { createHmac, timingSafeEqual } from "node:crypto";
+import { DEMO_COOKIE_NAME } from "@shared/const";
+import { ENV } from "./env";
 
 const LOCAL_HOSTS = new Set(["localhost", "127.0.0.1", "::1"]);
 
@@ -46,3 +49,29 @@ export function getSessionCookieOptions(
     secure: isSecureRequest(req),
   };
 }
+
+function signDemoId(id: string) {
+  return createHmac("sha256", ENV.cookieSecret).update(id).digest("base64url");
+}
+
+export function createDemoCookieValue(id: string) {
+  return `${id}.${signDemoId(id)}`;
+}
+
+export function readDemoCookieId(req: Request) {
+  const raw = req.headers.cookie
+    ?.split(";")
+    .map(value => value.trim())
+    .find(value => value.startsWith(`${DEMO_COOKIE_NAME}=`))
+    ?.slice(DEMO_COOKIE_NAME.length + 1);
+  if (!raw) return null;
+  const [id, signature] = raw.split(".");
+  if (!id || !signature || !ENV.cookieSecret) return null;
+  const expected = signDemoId(id);
+  if (signature.length !== expected.length) return null;
+  return timingSafeEqual(Buffer.from(signature), Buffer.from(expected))
+    ? id
+    : null;
+}
+
+export { DEMO_COOKIE_NAME };

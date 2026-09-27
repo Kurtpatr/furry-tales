@@ -1,6 +1,23 @@
 import { and, desc, eq, isNull } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
-import { InsertDaycareReservation, InsertGroomingAppointment, InsertNotification, InsertOrder, InsertOrderItem, InsertPet, InsertUser, InsertVeterinaryAppointment, daycareReservations, groomingAppointments, notifications, orderItems, orders, pets, users, veterinaryAppointments } from "../drizzle/schema";
+import {
+  InsertDaycareReservation,
+  InsertGroomingAppointment,
+  InsertNotification,
+  InsertOrder,
+  InsertOrderItem,
+  InsertPet,
+  InsertUser,
+  InsertVeterinaryAppointment,
+  daycareReservations,
+  groomingAppointments,
+  notifications,
+  orderItems,
+  orders,
+  pets,
+  users,
+  veterinaryAppointments,
+} from "../drizzle/schema";
 import { ENV } from "./_core/env";
 
 let _db: ReturnType<typeof drizzle> | null = null;
@@ -36,32 +53,75 @@ export async function upsertUser(user: InsertUser): Promise<void> {
     updateSet[field] = normalized;
   };
   textFields.forEach(assignNullable);
-  if (user.lastSignedIn !== undefined) { values.lastSignedIn = user.lastSignedIn; updateSet.lastSignedIn = user.lastSignedIn; }
-  if (user.role !== undefined) { values.role = user.role; updateSet.role = user.role; }
-  else if (user.openId === ENV.ownerOpenId) { values.role = "admin"; updateSet.role = "admin"; }
+  if (user.lastSignedIn !== undefined) {
+    values.lastSignedIn = user.lastSignedIn;
+    updateSet.lastSignedIn = user.lastSignedIn;
+  }
+  if (user.role !== undefined) {
+    values.role = user.role;
+    updateSet.role = user.role;
+  } else if (user.openId === ENV.ownerOpenId) {
+    values.role = "admin";
+    updateSet.role = "admin";
+  }
   if (!values.lastSignedIn) values.lastSignedIn = new Date();
   if (Object.keys(updateSet).length === 0) updateSet.lastSignedIn = new Date();
-  await db.insert(users).values(values).onDuplicateKeyUpdate({ set: updateSet });
+  await db
+    .insert(users)
+    .values(values)
+    .onDuplicateKeyUpdate({ set: updateSet });
 }
 
 export async function getUserByOpenId(openId: string) {
   const db = await getDb();
   if (!db) return undefined;
-  const result = await db.select().from(users).where(eq(users.openId, openId)).limit(1);
+  const result = await db
+    .select()
+    .from(users)
+    .where(eq(users.openId, openId))
+    .limit(1);
   return result.length > 0 ? result[0] : undefined;
 }
 
-export async function updateUserProfile(userId: number, data: { name: string; email: string }) {
+export async function createGuestUser(openId: string) {
   const db = await getDb();
   if (!db) throw new Error("Database is not available");
-  await db.update(users).set({ name: data.name, email: data.email, updatedAt: new Date() }).where(eq(users.id, userId));
-  return db.select().from(users).where(eq(users.id, userId)).limit(1).then((rows) => rows[0]);
+  await db.insert(users).values({
+    openId,
+    name: "Demo Pet Parent",
+    email: `${openId}@demo.furrytales.local`,
+    loginMethod: "demo",
+    role: "user",
+  });
+  return getUserByOpenId(openId);
+}
+
+export async function updateUserProfile(
+  userId: number,
+  data: { name: string; email: string }
+) {
+  const db = await getDb();
+  if (!db) throw new Error("Database is not available");
+  await db
+    .update(users)
+    .set({ name: data.name, email: data.email, updatedAt: new Date() })
+    .where(eq(users.id, userId));
+  return db
+    .select()
+    .from(users)
+    .where(eq(users.id, userId))
+    .limit(1)
+    .then(rows => rows[0]);
 }
 
 export async function listActivePets(userId: number) {
   const db = await getDb();
   if (!db) return [];
-  return db.select().from(pets).where(and(eq(pets.userId, userId), eq(pets.status, "active"))).orderBy(desc(pets.createdAt));
+  return db
+    .select()
+    .from(pets)
+    .where(and(eq(pets.userId, userId), eq(pets.status, "active")))
+    .orderBy(desc(pets.createdAt));
 }
 
 export async function createPet(data: InsertPet) {
@@ -69,68 +129,134 @@ export async function createPet(data: InsertPet) {
   if (!db) throw new Error("Database is not available");
   const result = await db.insert(pets).values(data);
   const insertedId = Number(result[0].insertId);
-  return db.select().from(pets).where(eq(pets.id, insertedId)).limit(1).then((rows) => rows[0]);
+  return db
+    .select()
+    .from(pets)
+    .where(eq(pets.id, insertedId))
+    .limit(1)
+    .then(rows => rows[0]);
 }
 
-export async function updatePet(userId: number, petId: number, data: Partial<InsertPet>) {
+export async function updatePet(
+  userId: number,
+  petId: number,
+  data: Partial<InsertPet>
+) {
   const db = await getDb();
   if (!db) throw new Error("Database is not available");
-  await db.update(pets).set({ ...data, updatedAt: new Date() }).where(and(eq(pets.id, petId), eq(pets.userId, userId)));
-  return db.select().from(pets).where(and(eq(pets.id, petId), eq(pets.userId, userId))).limit(1).then((rows) => rows[0]);
+  await db
+    .update(pets)
+    .set({ ...data, updatedAt: new Date() })
+    .where(and(eq(pets.id, petId), eq(pets.userId, userId)));
+  return db
+    .select()
+    .from(pets)
+    .where(and(eq(pets.id, petId), eq(pets.userId, userId)))
+    .limit(1)
+    .then(rows => rows[0]);
 }
 
 export async function archivePet(userId: number, petId: number) {
   const db = await getDb();
   if (!db) throw new Error("Database is not available");
-  await db.update(pets).set({ status: "archived", updatedAt: new Date() }).where(and(eq(pets.id, petId), eq(pets.userId, userId)));
+  await db
+    .update(pets)
+    .set({ status: "archived", updatedAt: new Date() })
+    .where(and(eq(pets.id, petId), eq(pets.userId, userId)));
   return { success: true } as const;
 }
 
-export async function createOrder(order: InsertOrder, items: InsertOrderItem[]) {
+export async function createOrder(
+  order: InsertOrder,
+  items: InsertOrderItem[]
+) {
   const db = await getDb();
   if (!db) throw new Error("Database is not available");
   const result = await db.insert(orders).values(order);
   const orderId = Number(result[0].insertId);
-  await db.insert(orderItems).values(items.map((item) => ({ ...item, orderId })));
-  return db.select().from(orders).where(eq(orders.id, orderId)).limit(1).then((rows) => rows[0]);
+  await db.insert(orderItems).values(items.map(item => ({ ...item, orderId })));
+  return db
+    .select()
+    .from(orders)
+    .where(eq(orders.id, orderId))
+    .limit(1)
+    .then(rows => rows[0]);
 }
 
 export async function listOrders(userId: number) {
   const db = await getDb();
   if (!db) return [];
-  const userOrders = await db.select().from(orders).where(eq(orders.userId, userId)).orderBy(desc(orders.createdAt));
+  const userOrders = await db
+    .select()
+    .from(orders)
+    .where(eq(orders.userId, userId))
+    .orderBy(desc(orders.createdAt));
   if (!userOrders.length) return [];
-  const allItems = await db.select().from(orderItems).where(eq(orderItems.orderId, userOrders[0].id));
-  const itemRows = await Promise.all(userOrders.slice(1).map((order) => db.select().from(orderItems).where(eq(orderItems.orderId, order.id))));
-  return userOrders.map((order, index) => ({ ...order, items: index === 0 ? allItems : itemRows[index - 1] }));
+  const allItems = await db
+    .select()
+    .from(orderItems)
+    .where(eq(orderItems.orderId, userOrders[0].id));
+  const itemRows = await Promise.all(
+    userOrders
+      .slice(1)
+      .map(order =>
+        db.select().from(orderItems).where(eq(orderItems.orderId, order.id))
+      )
+  );
+  return userOrders.map((order, index) => ({
+    ...order,
+    items: index === 0 ? allItems : itemRows[index - 1],
+  }));
 }
 
-export async function createVeterinaryAppointment(data: InsertVeterinaryAppointment) {
+export async function createVeterinaryAppointment(
+  data: InsertVeterinaryAppointment
+) {
   const db = await getDb();
   if (!db) throw new Error("Database is not available");
   const result = await db.insert(veterinaryAppointments).values(data);
   const appointmentId = Number(result[0].insertId);
-  return db.select().from(veterinaryAppointments).where(eq(veterinaryAppointments.id, appointmentId)).limit(1).then((rows) => rows[0]);
+  return db
+    .select()
+    .from(veterinaryAppointments)
+    .where(eq(veterinaryAppointments.id, appointmentId))
+    .limit(1)
+    .then(rows => rows[0]);
 }
 
 export async function listVeterinaryAppointments(userId: number) {
   const db = await getDb();
   if (!db) return [];
-  return db.select().from(veterinaryAppointments).where(eq(veterinaryAppointments.userId, userId)).orderBy(desc(veterinaryAppointments.scheduledAt));
+  return db
+    .select()
+    .from(veterinaryAppointments)
+    .where(eq(veterinaryAppointments.userId, userId))
+    .orderBy(desc(veterinaryAppointments.scheduledAt));
 }
 
-export async function createGroomingAppointment(data: InsertGroomingAppointment) {
+export async function createGroomingAppointment(
+  data: InsertGroomingAppointment
+) {
   const db = await getDb();
   if (!db) throw new Error("Database is not available");
   const result = await db.insert(groomingAppointments).values(data);
   const appointmentId = Number(result[0].insertId);
-  return db.select().from(groomingAppointments).where(eq(groomingAppointments.id, appointmentId)).limit(1).then((rows) => rows[0]);
+  return db
+    .select()
+    .from(groomingAppointments)
+    .where(eq(groomingAppointments.id, appointmentId))
+    .limit(1)
+    .then(rows => rows[0]);
 }
 
 export async function listGroomingAppointments(userId: number) {
   const db = await getDb();
   if (!db) return [];
-  return db.select().from(groomingAppointments).where(eq(groomingAppointments.userId, userId)).orderBy(desc(groomingAppointments.scheduledAt));
+  return db
+    .select()
+    .from(groomingAppointments)
+    .where(eq(groomingAppointments.userId, userId))
+    .orderBy(desc(groomingAppointments.scheduledAt));
 }
 
 export async function createDaycareReservation(data: InsertDaycareReservation) {
@@ -138,13 +264,22 @@ export async function createDaycareReservation(data: InsertDaycareReservation) {
   if (!db) throw new Error("Database is not available");
   const result = await db.insert(daycareReservations).values(data);
   const reservationId = Number(result[0].insertId);
-  return db.select().from(daycareReservations).where(eq(daycareReservations.id, reservationId)).limit(1).then((rows) => rows[0]);
+  return db
+    .select()
+    .from(daycareReservations)
+    .where(eq(daycareReservations.id, reservationId))
+    .limit(1)
+    .then(rows => rows[0]);
 }
 
 export async function listDaycareReservations(userId: number) {
   const db = await getDb();
   if (!db) return [];
-  return db.select().from(daycareReservations).where(eq(daycareReservations.userId, userId)).orderBy(desc(daycareReservations.scheduledAt));
+  return db
+    .select()
+    .from(daycareReservations)
+    .where(eq(daycareReservations.userId, userId))
+    .orderBy(desc(daycareReservations.scheduledAt));
 }
 
 export async function createNotification(data: InsertNotification) {
@@ -156,19 +291,38 @@ export async function createNotification(data: InsertNotification) {
 export async function listNotifications(userId: number) {
   const db = await getDb();
   if (!db) return [];
-  return db.select().from(notifications).where(eq(notifications.userId, userId)).orderBy(desc(notifications.createdAt)).limit(50);
+  return db
+    .select()
+    .from(notifications)
+    .where(eq(notifications.userId, userId))
+    .orderBy(desc(notifications.createdAt))
+    .limit(50);
 }
 
-export async function markNotificationRead(userId: number, notificationId: number) {
+export async function markNotificationRead(
+  userId: number,
+  notificationId: number
+) {
   const db = await getDb();
   if (!db) throw new Error("Database is not available");
-  await db.update(notifications).set({ readAt: new Date() }).where(and(eq(notifications.id, notificationId), eq(notifications.userId, userId)));
+  await db
+    .update(notifications)
+    .set({ readAt: new Date() })
+    .where(
+      and(
+        eq(notifications.id, notificationId),
+        eq(notifications.userId, userId)
+      )
+    );
   return { success: true } as const;
 }
 
 export async function markAllNotificationsRead(userId: number) {
   const db = await getDb();
   if (!db) throw new Error("Database is not available");
-  await db.update(notifications).set({ readAt: new Date() }).where(and(eq(notifications.userId, userId), isNull(notifications.readAt)));
+  await db
+    .update(notifications)
+    .set({ readAt: new Date() })
+    .where(and(eq(notifications.userId, userId), isNull(notifications.readAt)));
   return { success: true } as const;
 }

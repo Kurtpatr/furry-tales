@@ -1,6 +1,5 @@
 import { useEffect, useState } from "react";
 import { useAuth } from "@/_core/hooks/useAuth";
-import { startLogin } from "@/const";
 import { trpc } from "@/lib/trpc";
 import {
   Bell,
@@ -93,7 +92,7 @@ function notificationIcon(type: string) {
 
 export default function Dashboard() {
   const [, navigate] = useLocation();
-  const { user, isAuthenticated, loading, logout } = useAuth();
+  const { user, isAuthenticated, loading, logout, startDemo } = useAuth();
   const utils = trpc.useUtils();
   const petsQuery = trpc.account.pets.useQuery(undefined, {
     enabled: isAuthenticated,
@@ -224,11 +223,14 @@ export default function Dashboard() {
           <span className="eyebrow">Furry Tales account</span>
           <h1>Your pet's care, all in one place.</h1>
           <p>
-            Log in to manage your profile, add pets, and keep every upcoming
-            service close at hand.
+            Open a private demo account to manage your profile, add pets, and
+            keep every upcoming service close at hand.
           </p>
-          <button className="button button--primary" onClick={startLogin}>
-            Log in to continue <CaretRight size={18} />
+          <button
+            className="button button--primary"
+            onClick={() => startDemo()}
+          >
+            Continue as demo <CaretRight size={18} />
           </button>
           <button className="back-link" onClick={() => navigate("/")}>
             Back to Furry Tales
